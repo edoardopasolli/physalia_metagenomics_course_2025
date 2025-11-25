@@ -1,1 +1,115 @@
+---
+title: "Shotgun metagenomics processing and analysis 2025 - PanPhlAn"
+author: "Edoardo Pasolli"
+date: "2025-Nov-25"
+output: html_document
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Import files
+
+- Here's the R code to import the files "metadata_erectale.txt" and "result_profile_erectale.tsv"
+- We assume they have headers and are tab-separated
+
+```{r}
+# Import the metadata file
+metadata <- read.table("metadata_erectale.txt", sep = "\t", header = TRUE)
+
+# Import the result_profile file
+result_profile <- read.table("result_profile_erectale.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Remove the suffix '_erectale.tsv' from column names
+colnames(result_profile) <- gsub("_erectale\\.tsv$", "", colnames(result_profile))
+
+# Transpose result_profile
+result_profile <- as.data.frame(t(result_profile))
+
+# Merge the metadata and result_profile
+df <- merge(metadata, result_profile, by.x = "SampleID", by.y = "row.names", all = FALSE)
+
+# Extract the column names from metadata and store them in the 'meta' variable
+meta <- colnames(metadata)
+
+# Extract the column names from result_profile and store them in the 'feat' variable
+feat <- colnames(result_profile)
+```
+
+## Heatmap to visualize PanPhlAn profiles
+
+- We want to have an heatmap that shows the PanPhlAn profiles
+- The goal is to plot a heatmap considering the columns identified in the variable "feat" and to include an annotation based on the column "Country"
+- We create the heatmap using the ComplexHeatmap package
+
+```{r}
+# Load necessary libraries
+library(ComplexHeatmap)
+
+# Subset df to include only the columns identified in 'feat'
+df_feat <- df[, feat]
+row.names(df_feat) <- df$SampleID
+
+# Create a custom color palette for Country
+country_colors <- c("CHN" = "darkgreen", "DEU" = "darkblue", "NLD" = "orange", "RUS" = "purple")
+
+# Create an annotation for the column 'Country' using the custom colors
+annotation <- rowAnnotation(
+  Country = df$Country,
+  col = list(Country = country_colors)
+)
+
+# Create the (binary) heatmap
+heatmap <- Heatmap(
+  df_feat,  # The data for the heatmap
+  name = "Presence/Absence",  # Title for the heatmap color scale
+  left_annotation = annotation,  # Add the country annotation to the top of the heatmap
+  show_row_names = TRUE,  # Option to show row names
+  show_column_names = FALSE,  # Option to show column names
+  cluster_rows = TRUE,  # Option to cluster rows
+  cluster_columns = TRUE,  # Option to cluster columns
+  col = c("gray", "darkred"),  # Two colors for binary heatmap: gray (absence), darkred (presence)
+  heatmap_legend_param = list(at = c(0, 1), labels = c("Absent", "Present"))  # Set the legend to be discrete
+)
+
+# Draw the heatmap
+draw(heatmap)
+
+pdf("heatmap_erectale.pdf", width = 8, height = 6)  # Adjust size as needed
+draw(heatmap)
+dev.off()
+```
+
+## MDS (Multidimensional Scaling) plot to visualize PanPhlAn profiles
+- In the MDS plot, the distance between points reflects the dissimilarity of the data
+- We can calculate a distance matrix from the features and then use that distance matrix to create the MDS plot
+
+```{r}
+# Load necessary libraries
+library(vegan) # For MDS function
+library(ggplot2) # For visualization
+
+# Create a distance matrix using "jaccard"
+dist_matrix <- vegdist(df_feat, method = "jaccard")
+
+# Perform MDS on the distance matrix
+mds_result <- metaMDS(dist_matrix)
+
+# Create a data frame for plotting
+mds_data <- as.data.frame(mds_result$points) # Extract MDS coordinates
+
+# Add metadata (Country) information for coloring
+mds_data$SampleID <- rownames(mds_data)
+mds_data <- merge(mds_data, df[, c("SampleID", "Country")], by = "SampleID")
+
+# Create the MDS plot
+p <- ggplot(mds_data, aes(x = MDS1, y = MDS2, color = Country)) +
+  geom_point(size = 3) +  # Scatter plot of the MDS points
+  scale_color_manual(values = country_colors) +  # Apply custom colors for countries
+  labs(title = "MDS Plot of Samples", x = "MDS1", y = "MDS2") +
+  theme_minimal() +
+  theme(legend.title = element_blank())  # Remove legend title
+p
+ggsave("mds_erectale.pdf", plot = p, width = 8, height = 6)
+```
