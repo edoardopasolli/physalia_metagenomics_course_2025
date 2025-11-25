@@ -1,4 +1,4 @@
-## physalia_metagenomics_2025
+## physalia_metagenomics_course_2025
 ### Lecture 1 - Pre-processing
 
 #### Get into the right place
