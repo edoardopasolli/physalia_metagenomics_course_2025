@@ -1,1 +1,1075 @@
+---
+title: "Shotgun metagenomics processing and analysis 2025 - Statistical analysis"
+author: "Edoardo Pasolli & Michele Avagliano"
+date: "2025-Nov-28"
+output: html_document
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Import libraries
+
+- Before using R packages, it is essential to load them in the R session using the library() function. This is necessary for importing and utilizing any package in R. 
+
+- The curatedMetagenomicData package in R provides a collection of curated metagenomic datasets, enabling researchers to access, analyze, and visualize data from a wide range of microbiome studies. It offers standardized metadata and taxonomy information, facilitating reproducibility and comparison across different studies. The package includes tools for loading datasets, conducting exploratory data analysis, and integrating metagenomic data with other biological data sources. By using curatedMetagenomicData, researchers can streamline their workflows and focus on biological insights rather than data management.
+
+```{r}
+library(curatedMetagenomicData)
+```
+
+## List datasets with relative abundance profiles available in curatedMetagenomicData
+
+- The command curatedMetagenomicData("relative_abundance") is used to retrieve a curated dataset of relative abundance profiles from the package. This function allows users to access specific metagenomic data, focusing on relative abundances of taxa across various samples. By specifying "relative_abundance", you can easily obtain a dataset that is ready for analysis, ensuring that the data is standardized and curated for accuracy.
+
+```{r}
+curatedMetagenomicData("relative_abundance")
+```
+
+## Select the "ZellerG_2014" dataset
+
+- Metagenomic data from the curated dataset "ZellerG_2014" are retrieved from the curatedMetagenomicData package.
+-  It retrieves relative abundance data and associated metadata from the study and saves them as tabular files for further analysis.
+
+```{r}
+# Load the data for the specified study (ZellerG_2014) with relative abundance values.
+# The 'dryrun' parameter is set to FALSE to execute the retrieval, and 'rownames' is set to "long" for row naming.
+data <- curatedMetagenomicData("ZellerG_2014.relative_abundance", dryrun = FALSE, rownames = "long")
+
+# Extract the first element of the retrieved data (a SummarizedExperiment object) and access the relative abundance values.
+abundance_data <- assay(data[[1]])
+
+# Convert the relative abundance matrix to a data frame for easier manipulation and analysis.
+abundance_df <- as.data.frame(abundance_data)
+
+# Save the relative abundance data frame to a tabular file named "relative_abundances.tsv" with tab separation.
+# 'row.names = TRUE' includes the row names in the output file.
+write.table(abundance_df, "relative_abundances.tsv", sep = "\t", row.names = TRUE, col.names = NA)
+
+# Extract the metadata associated with the samples from the SummarizedExperiment object.
+metadata <- colData(data[[1]])
+
+# Convert the metadata to a data frame (if needed) for easier manipulation and analysis.
+metadata_df <- as.data.frame(metadata)
+
+# Save the metadata data frame to a tabular file named "metadata.tsv" with tab separation.
+# 'row.names = TRUE' includes the row names in the output file.
+write.table(metadata_df, "metadata.tsv", sep  = "\t", row.names = TRUE, col.names = NA)
+```
+
+## Read again the "ZellerG_2014" dataset from files
+
+- After clearing the R environment, relative abundance and metadata can be read through the tab-delimited files into data frames. The data frames can be merged by sample identifiers, resulting in a unified data frame ready for analysis.
+
+```{r}
+# Clear the R environment by removing all existing objects from the workspace.
+rm(list = ls())
+
+# Read the relative abundance data from the tabular file "relative_abundances.tsv" into a data frame.
+# 'sep = "\t"' specifies tab as the delimiter, 'header = TRUE' indicates that the first row contains column names,
+# 'row.names = 1' sets the first column as the row names, and 'check.names = FALSE' prevents R from modifying column names.
+abundance_df <- read.table("relative_abundances.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Read the metadata from the tabular file "metadata.tsv" into a data frame with the same parameters as above.
+metadata_df <- read.table("metadata.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Transpose the abundance data frame so that samples become rows and taxa become columns.
+abundance_df <- as.data.frame(t(abundance_df))
+
+# Store the column names of the abundance data frame (taxa) and the metadata data frame.
+taxa <- colnames(abundance_df)
+meta <- colnames(metadata_df)
+
+# Merge the metadata and abundance data frames by row names (sample identifiers).
+df <- merge(metadata_df, abundance_df, by = "row.names")
+
+# Set the row names of the merged data frame to the original row names column (sample identifiers).
+# Remove the additional Row.names column created during the merge.
+row.names(df) <- df$Row.names
+df$Row.names <- NULL
+```
+
+## Alpha diversity analysis: computing indices
+- Alpha diversity assess the diversity within individual samples.
+- The three common alpha diversity indices: Shannon, Simpson, and Richness.
+- Here, we use the vegan package that provides functions for diversity analysis, such as calculating species richness and evenness.
+
+```{r}
+# Load the necessary libraries
+library(vegan)
+library(dplyr)
+
+# Calculate alpha diversity (Shannon, Simpson, or Richness) for each sample
+# Shannon diversity index
+shannon_div <- diversity(select(df, all_of(taxa)), index = "shannon")
+
+# Simpson diversity index
+simpson_div <- diversity(select(df, all_of(taxa)), index = "simpson")
+
+# Richness (total number of taxa present in each sample)
+richness <- rowSums(select(df, all_of(taxa)) > 0)
+
+# Create a data frame to combine the diversity indices
+alpha_diversity_df <- data.frame(
+  Shannon = shannon_div,
+  Simpson = simpson_div,
+  Richness = richness
+)
+```
+
+## Alpha diversity analysis: do boxplots (comparison for variable "study_condition")
+- We want to compare alpha diversity among different study conditions
+- We use a graphical representation based on boxplots
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(ggpubr)
+
+# Add variable "study_condition" to the dataframe
+alpha_diversity_df$StudyCondition <- df$study_condition
+
+# Set the order of StudyCondition factor
+alpha_diversity_df$StudyCondition <- factor(alpha_diversity_df$StudyCondition, levels = c("control", "adenoma", "CRC"))
+
+# Define color palette
+colors <- c("control" = "darkgreen", "adenoma" = "darkorange", "CRC" = "darkred")
+
+# Define the pairwise comparisons
+comparisons <- list(c("control", "adenoma"), c("adenoma", "CRC"), c("control", "CRC"))
+
+# Generate boxplots for each diversity index with p-values
+# Shannon diversity boxplot with p-value
+ggplot(alpha_diversity_df, aes(x = StudyCondition, y = Shannon, fill = StudyCondition)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, size = 1.5, alpha = 0.8) +  # Add individual points with jitter
+  labs(title = "Shannon Diversity Index by Study Condition", x = "Study Condition", y = "Shannon Diversity") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  stat_compare_means(comparisons = comparisons, method = "wilcox.test", label = "p.format", label.x.npc = "center") +  # Add pairwise p-values
+  scale_fill_manual(values = colors)
+
+# Simpson diversity boxplot with p-value
+ggplot(alpha_diversity_df, aes(x = StudyCondition, y = Simpson, fill = StudyCondition)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, size = 1.5, alpha = 0.8) +  # Add individual points with jitter
+  labs(title = "Simpson Diversity Index by Study Condition", x = "Study Condition", y = "Simpson Diversity") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  stat_compare_means(comparisons = comparisons, method = "wilcox.test", label = "p.format", label.x.npc = "center") +  # Add pairwise p-values
+  scale_fill_manual(values = colors)
+
+# Richness boxplot with p-value
+ggplot(alpha_diversity_df, aes(x = StudyCondition, y = Richness, fill = StudyCondition)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, size = 1.5, alpha = 0.8) +  # Add individual points with jitter
+  labs(title = "Taxa Richness by Study Condition", x = "Study Condition", y = "Richness") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  stat_compare_means(comparisons = comparisons, method = "wilcox.test", label = "p.format", label.x.npc = "center") +  # Add pairwise p-values
+  scale_fill_manual(values = colors)
+```
+
+## Beta diversity analysis
+- Beta diversity analysis helps researchers understand whether different sample groups (e.g., control, adenoma, CRC) have distinct microbial communities
+- Significant differences in beta diversity between groups suggest that microbial community composition is influenced by the variable of interest, such as a disease state or treatment condition. Conversely, a lack of significant differences might suggest that the microbial communities are relatively similar across conditions.
+
+```{r}
+# Beta diversity analysis: Bray-Curtis distance calculation
+beta_dist <- vegdist(select(df, all_of(taxa)), method = "bray")
+
+# PCoA analysis
+pcoa_results <- cmdscale(beta_dist, eig = TRUE, k = 2)  # Perform PCoA with 2 components
+pcoa_df <- data.frame(
+  MDS1 = pcoa_results$points[, 1],
+  MDS2 = pcoa_results$points[, 2],
+  StudyCondition = df$study_condition  # Add study_condition for coloring
+)
+
+# Set the order of StudyCondition factor
+pcoa_df$StudyCondition <- factor(pcoa_df$StudyCondition, levels = c("control", "adenoma", "CRC"))
+
+# Define color palette
+colors <- c("control" = "darkgreen", "adenoma" = "darkorange", "CRC" = "darkred")
+
+# Perform PERMANOVA (adonis2) to compare groups based on Bray-Curtis distance
+adonis_results <- adonis2(beta_dist ~ df$study_condition, permutations = 999)
+
+# PCoA plot with jittered points and p-value
+ggplot(pcoa_df, aes(x = MDS1, y = MDS2, color = StudyCondition)) +
+  geom_point(size = 3, alpha = 0.8) +  # Add points with opacity
+  scale_color_manual(values = colors) +
+  stat_ellipse(aes(group = StudyCondition), level = 0.95, type = "t", size = 1) +  # Add ellipses
+  labs(title = "PCoA of Beta Diversity (Bray-Curtis)", x = "MDS1", y = "MDS2") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  annotate("text", x = Inf, y = Inf, label = paste("p = ", round(adonis_results$`Pr(>F)`[1], 3)),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black")  # Add p-value from PERMANOVA
+
+# NMDS analysis using Bray-Curtis distance
+nmds_results <- metaMDS(select(df, all_of(taxa)), distance = "bray", k = 2, trymax = 100)  # Perform NMDS
+nmds_df <- data.frame(
+  NMDS1 = nmds_results$points[, 1],
+  NMDS2 = nmds_results$points[, 2],
+  StudyCondition = df$study_condition
+)
+
+# Set the order of StudyCondition factor
+nmds_df$StudyCondition <- factor(nmds_df$StudyCondition, levels = c("control", "adenoma", "CRC"))
+
+# NMDS plot with jittered points and p-value
+ggplot(nmds_df, aes(x = NMDS1, y = NMDS2, color = StudyCondition)) +
+  geom_point(size = 3, alpha = 0.8) +  # Add points with opacity
+  scale_color_manual(values = colors) +
+  stat_ellipse(aes(group = StudyCondition), level = 0.95, type = "t", size = 1) +  # Add ellipses
+  labs(title = "NMDS of Beta Diversity (Bray-Curtis)", x = "NMDS1", y = "NMDS2") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  annotate("text", x = Inf, y = Inf, label = paste("p = ", round(adonis_results$`Pr(>F)`[1], 3)),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black")  # Add p-value from PERMANOVA
+```
+
+## (Phylum) composition of microbial communities across study conditions
+- We want to visualize the relative abundance of different phyla within the microbial communities across different study conditions
+- We use a bar chart. Each bar represents a study condition, and the stacked segments within each bar show the proportion of each phylum (e.g., Firmicutes, Bacteroidetes, Proteobacteria, Actinobacteria, and others).
+- The chart provides an overview of the phylum-level composition of the microbiome, highlighting differences in microbial community structure between conditions.
+
+```{r}
+# Load necessary libraries
+library(tidyr)
+library(tibble)
+library(stringr)
+
+# Create a long-format dataframe where 'taxa' columns are stacked into one column
+df_long <- df %>%
+  select(all_of(taxa)) %>%  # Select only the columns related to taxa
+  rownames_to_column("Sample") %>%  # To keep sample names as a column
+  pivot_longer(cols = -Sample,  # Reshape from wide to long (keeping 'Sample' as identifier)
+               names_to = "Taxa",  # Column name for the taxa
+               values_to = "RelativeAbundance")  # Column name for the values (relative abundances)
+
+df_long$Phylum <- str_extract(df_long$Taxa, "(?<=\\|p__)[^|]+")
+
+# Summarize the data at the sample level for the grouped phyla
+df_summary <- df_long %>%
+  group_by(Sample, Phylum) %>%
+  summarise(CumulativeRelativeAbundance = sum(RelativeAbundance)) %>%
+  ungroup()
+
+# Calculate the overall abundance of each phylum
+phylum_abundance <- df_summary %>%
+  group_by(Phylum) %>%
+  summarise(TotalAbundance = sum(CumulativeRelativeAbundance)) %>%
+  arrange(desc(TotalAbundance))
+
+# Identify the 7 most prevalent phyla
+top_phyla <- phylum_abundance$Phylum[1:7]
+
+# Modify df_summary to keep only the top 7 most prevalent phyla, grouping others as "Other"
+df_summary <- df_summary %>%
+  mutate(Phylum = ifelse(Phylum %in% top_phyla, Phylum, "Other"))
+
+# Set "Other" as the last factor level in Phylum
+df_summary$Phylum <- factor(df_summary$Phylum, levels = c(top_phyla, "Other"))
+
+# Re-summarize to account for the "Other" category
+df_summary <- df_summary %>%
+  group_by(Sample, Phylum) %>%
+  summarise(CumulativeRelativeAbundance = sum(CumulativeRelativeAbundance)) %>%
+  ungroup()
+
+# Create the bar plot with samples on the x-axis and cumulative relative abundances on the y-axis
+ggplot(df_summary, aes(x = Sample, y = CumulativeRelativeAbundance, fill = Phylum)) +
+  geom_bar(stat = "identity", position = "stack") +  # Stacked bar plot
+  labs(title = "Cumulative Relative Abundance of Top 7 Phyla by Sample", x = "Sample", y = "Cumulative Relative Abundance") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 3)) +  # Rotate x-axis labels
+  scale_fill_brewer(palette = "Set3")  # Set color palette
+
+```
+
+## (Phylum) composition of microbial communities across study conditions
+- We can do the same thing by grouping for "study_condition"
+
+```{r}
+# Create a long-format dataframe where 'taxa' columns are stacked into one column
+df_long <- df %>%
+  select(all_of(c("study_condition", taxa))) %>%  # Include 'study_condition' in the selection
+  rownames_to_column("Sample") %>%  # To keep sample names as a column
+  pivot_longer(cols = -c(Sample, study_condition),  # Reshape from wide to long (keeping 'Sample' and 'study_condition' as identifiers)
+               names_to = "Taxa",  # Column name for the taxa
+               values_to = "RelativeAbundance")  # Column name for the values (relative abundances)
+
+# Extract the phylum level from the 'Taxa' column
+df_long$Phylum <- str_extract(df_long$Taxa, "(?<=\\|p__)[^|]+")
+
+# Summarize the data at the study_condition level for the grouped phyla
+df_summary <- df_long %>%
+  group_by(study_condition, Phylum) %>%
+  summarise(CumulativeRelativeAbundance = sum(RelativeAbundance)) %>%
+  ungroup()
+
+# Calculate the overall abundance of each phylum
+phylum_abundance <- df_summary %>%
+  group_by(Phylum) %>%
+  summarise(TotalAbundance = sum(CumulativeRelativeAbundance)) %>%
+  arrange(desc(TotalAbundance))
+
+# Identify the top 7 most prevalent phyla
+top_phyla <- phylum_abundance$Phylum[1:7]
+
+# Modify df_summary to keep only the top 7 most prevalent phyla, grouping others as "Other"
+df_summary <- df_summary %>%
+  mutate(Phylum = ifelse(Phylum %in% top_phyla, Phylum, "Other"))
+
+# Set "Other" as the last factor level in Phylum
+df_summary$Phylum <- factor(df_summary$Phylum, levels = c(top_phyla, "Other"))
+
+# Re-summarize to account for the "Other" category
+df_summary <- df_summary %>%
+  group_by(study_condition, Phylum) %>%
+  summarise(CumulativeRelativeAbundance = sum(CumulativeRelativeAbundance)) %>%
+  ungroup()
+
+# Normalize cumulative relative abundances within each study_condition
+df_summary <- df_summary %>%
+  group_by(study_condition) %>%
+  mutate(NormalizedAbundance = CumulativeRelativeAbundance / sum(CumulativeRelativeAbundance)) %>%
+  ungroup()
+
+# Set factor levels for study_condition to ensure the correct order
+df_summary$study_condition <- factor(df_summary$study_condition, levels = c("control", "adenoma", "CRC"))
+
+# Create the bar plot with study_condition on the y-axis, normalized abundances
+ggplot(df_summary, aes(x = study_condition, y = NormalizedAbundance, fill = Phylum)) +
+  geom_bar(stat = "identity", position = "stack") +  # Stacked bar plot
+  labs(title = "Normalized Relative Abundance of Top 7 Phyla by Study Condition", x = "Study Condition", y = "Normalized Relative Abundance") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 8, angle = 0, hjust = 1)) +  # Smaller text for y-axis labels
+  scale_fill_brewer(palette = "Set3")  # Set color palette
+
+```
+
+## Heatmap for the 30 most abundant species
+- Let's do an heatmap that report the 30 most abundant species in our set of samples
+
+```{r}
+# Load necessary libraries
+library(ComplexHeatmap)
+library(circlize)
+
+# Compute the total relative abundance for each taxa
+sum_taxa <- df %>% select(all_of(taxa)) %>% colSums()
+
+# Select the 30 taxa with the highest sum values
+top_30_taxa <- names(sort(sum_taxa, decreasing = TRUE))[1:30]
+
+# Subset the dataframe to include only the top 30 columns
+df_top_30 <- df %>% select(all_of(top_30_taxa))
+
+# Apply log10 transformation (add 0.00001 to avoid log(0) issues)
+df_top_30_log <- log10(df_top_30 + 0.00001)  # Adding 0.00001 to avoid taking log of 0
+
+# Create a heatmap matrix
+df_top_30_log <- as.matrix(df_top_30_log) # Convert the dataframe to matrix for heatmap
+colnames(df_top_30_log) <- str_extract(colnames(df_top_30_log), "(?<=\\|s__)[^|]+") # Extract species names from the column names (assuming species is after 's__')
+
+# Create a sample annotation for study_condition
+study_condition_annotation <- rowAnnotation(
+  condition = df$study_condition,
+  col = list(condition = c("control" = "darkgreen", "adenoma" = "darkorange", "CRC" = "darkred"))
+)
+
+Heatmap(df_top_30_log,
+        name = "Log10(Relative Abundance)",  # Heatmap color legend title
+        column_title = "Species",  # Title for columns
+        row_title = "Samples",  # Title for rows
+        show_row_names = FALSE,  # Show row names
+        show_column_names = TRUE,  # Show column names
+        cluster_rows = TRUE,  # Cluster rows
+        cluster_columns = TRUE,  # Cluster columns
+        col = colorRamp2(c(-4, -2, 0, 1), c("darkblue", "white", "red", "yellow")),  # Color scale
+        heatmap_legend_param = list(title = "Log10(Relative Abundance)", legend_width = unit(4, "cm")),
+        column_names_gp = gpar(fontface = "italic"),  # Italicize column names
+        left_annotation = study_condition_annotation)  # Add study_condition annotation to the left of the heatmap
+```
+
+## Correlation analysis: computation
+- Correlation analysis is important to identify relationships between variables.
+- In microbiome studies, it helps reveal associations between microbial taxa and host factors (e.g., BMI, disease status, diet, etc).
+- By identifying which taxa are positively or negatively correlated with specific variables, it is possible to uncover patterns that suggest potential roles of certain microbes in health or disease. For instance, a strong correlation between a taxon and BMI may indicate a microbial role in metabolism, which could be further investigated for therapeutic insights.
+- Correlation is different from causation: Correlation analysis is a first step in understanding the complex interplay between the microbiome and its host, guiding researchers toward more detailed mechanistic studies.
+
+- Let's compute the correlation between taxa and BMI
+
+```{r}
+# Ensure that the BMI variable is numeric
+df$BMI <- as.numeric(df$BMI)
+
+# Calculate the presence of each taxon in at least 5% of the samples
+min_samples <- 0.05 * nrow(df)  # 5% of the total number of samples
+present_taxa <- colSums(df[taxa]) > min_samples  # Identify taxa present in at least 5% of the samples
+
+# Filter taxa to only include those that meet the presence threshold
+taxa_filtered <- taxa[present_taxa]
+
+# Initialize vectors to store the taxa names, correlation coefficients, and p-values
+taxa_names <- character(length(taxa_filtered))
+correlations <- numeric(length(taxa_filtered))
+p_values <- numeric(length(taxa_filtered))
+
+# Loop through each filtered taxon and compute the correlation with BMI using Spearman correlation
+for (i in seq_along(taxa_filtered)) {
+  taxon <- taxa_filtered[i]
+  
+  # Perform the Spearman correlation test between the taxon and BMI
+  cor_test <- cor.test(df[[taxon]], df$BMI, method = "spearman")
+  
+  # Store the results in the respective vectors
+  taxa_names[i] <- taxon
+  correlations[i] <- cor_test$estimate
+  p_values[i] <- cor_test$p.value
+}
+
+# Apply FDR correction to p-values
+adjusted_p_values <- p.adjust(p_values, method = "fdr")
+
+# Create a data frame to store the results with columns for taxa, correlation, p-value, and adjusted p-value
+cor_df <- data.frame(
+  Taxon = taxa_names,
+  Correlation = correlations,
+  P_value = p_values,
+  Adjusted_P_value = adjusted_p_values
+)
+
+```
+
+- False discovery rate (FDR) correction is extremely important in statistical analysis when performing multiple hypothesis tests.
+- Each test has a probability of yielding a significant result purely by chance, which increases with the number of tests.
+- For example, in microbiome studies, correlations between dozens or hundreds of taxa and a variable like BMI are calculated simultaneously. Without correction, even unrelated taxa could appear significantly correlated simply due to random chance.
+- FDR correction addresses this by controlling the expected proportion of false positives (incorrectly significant results) among the set of tests deemed significant.
+- Unlike stricter corrections like the Bonferroni method, FDR is often used in exploratory fields like genomics or microbiome research, where a balance between discovering true positives and limiting false positives is crucial.
+- It allows researchers to draw more reliable conclusions from large-scale analyses, minimizing the risk of overinterpreting random results while maintaining sufficient power to detect genuine associations.
+
+## Correlation analysis: barplot
+- Let's do a barplot with the top-20 correlations
+- Correlations with adjusted p-value < 0.2 (we used a quite relaxed threshold!) are highlighted as significant
+
+```{r}
+# Order the data by absolute correlation values
+cor_df$Abs_Correlation <- abs(cor_df$Correlation)
+
+# Sort the data frame by absolute correlation values in descending order
+cor_df_sorted <- cor_df[order(cor_df$Abs_Correlation, decreasing = TRUE), ]
+
+# Select the top 20 correlations (both positive and negative)
+top_20_correlations <- cor_df_sorted[1:20, ]
+
+# Apply a threshold of 0.2 for significance based on adjusted p-value
+top_20_correlations$Significance <- ifelse(top_20_correlations$Adjusted_P_value < 0.2, "Significant", "Not Significant")
+
+# Extract species name after 's__'
+top_20_correlations$Species <- sub(".*s__([^;]+)", "\\1", top_20_correlations$Taxon)
+
+# Plot bar plot of the top 20 correlations, colored by significance
+ggplot(top_20_correlations, aes(x = reorder(Species, Correlation), y = Correlation, fill = Significance)) + 
+  geom_bar(stat = "identity", color = "black") +
+  coord_flip() + 
+  labs(title = "Top 20 Correlations with BMI (Threshold of 0.2)", 
+       x = "Species", y = "Correlation") + 
+  scale_fill_manual(values = c("Significant" = "red", "Not Significant" = "grey")) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 10))  # Adjust text size for readability
+
+```
+
+## Correlation analysis: scatterplot of Alistipes indistinctus and BMI
+- Let's do a scatterplot of Alistipes indistinctus and BMI
+
+```{r}
+# Extract the data for Alistipes_indistinctus (using partial matching) and BMI
+alistipes_bmi <- data.frame(
+  BMI = df$BMI,
+  Alistipes_indistinctus = df[, grep("Alistipes_indistinctus", colnames(df))]
+)
+
+# Create the scatter plot
+ggplot(alistipes_bmi, aes(x = Alistipes_indistinctus, y = BMI)) +
+  geom_point(color = "blue", size = 2) +  # Scatter points
+  geom_smooth(method = "lm", se = FALSE, color = "red") +  # Linear regression line
+  labs(title = "Scatter Plot of Alistipes indistinctus vs BMI", 
+       x = "Alistipes indistinctus Relative Abundance", 
+       y = "BMI") +
+  theme_minimal()
+
+```
+
+## Differential abundance analysis: the Wilcoxon rank-sum test
+- Differential abundance analysis is a key statistical approach used to identify changes in the abundance of specific microbial taxa between different experimental groups or conditions. 
+- It helps in understanding how specific factors (e.g., disease, treatment, diet, environmental exposures) affect the microbiome composition.
+- This analysis compares the relative abundance of taxa between groups to identify which ones are significantly different.
+- It can provide insights into how shifts in microbial communities correlate with specific health outcomes or experimental conditions.
+
+- Statistical testing: Various methods can be applied to compare the abundance of taxa across groups. Common methods include:
+  - t-tests or ANOVA for normally distributed data.
+  - Wilcoxon rank-sum test for non-parametric data or when the assumptions of normality are not met. The Wilcoxon rank-sum test compares the ranks of values between two independent groups, making it particularly useful when dealing with skewed or non-normally distributed abundance data.
+  - Non-parametric tests like the Kruskal-Wallis test for comparing multiple groups.
+  - More advanced techniques like generalized linear models or methods that account for compositional data.
+
+- Multiple testing correction: Since many taxa are being tested simultaneously, corrections for multiple comparisons (e.g., FDR) are applied to control for type I errors.
+- Interpretation: Significant changes in microbial abundance may provide insights into biological processes, potential biomarkers for disease, or targets for therapeutic interventions.
+
+```{r}
+# Load necessary libraries
+library(rstatix)
+
+# Filter samples by "study_condition" to include only "control" and "CRC"
+filtered_df <- df[df$study_condition %in% c("control", "CRC"), ]
+
+# Extract the abundance data (only taxa columns) and remove taxa that are zero across all samples
+abundance_data <- filtered_df[, taxa]
+non_zero_taxa <- colSums(abundance_data != 0) > 0
+abundance_data <- abundance_data[, non_zero_taxa]
+
+# Update the filtered data frame to include only the non-zero taxa
+filtered_df <- cbind(filtered_df[, meta], abundance_data)
+
+# Initialize vectors to store p-values, effect sizes, and direction
+p_values <- c()
+effect_sizes <- c()
+directions <- c()
+
+# Perform Wilcoxon rank-sum test, calculate effect size, and determine direction for each taxon
+for (taxon in names(abundance_data)) {
+  # Create a temporary data frame for the current taxon
+  temp_df <- data.frame(
+    Abundance = filtered_df[[taxon]],
+    study_condition = filtered_df$study_condition
+  )
+  
+  # Perform Wilcoxon rank-sum test
+  test_result <- wilcox.test(Abundance ~ study_condition, data = temp_df)
+  p_values[taxon] <- test_result$p.value
+  
+  # Calculate effect size for the current taxon using wilcox_effsize
+  effect_size_result <- temp_df %>%
+    wilcox_effsize(Abundance ~ study_condition)
+  effect_sizes[taxon] <- effect_size_result$effsize
+  
+  # Determine the direction of enrichment by comparing group means
+  mean_control <- mean(temp_df$Abundance[temp_df$study_condition == "control"])
+  mean_crc <- mean(temp_df$Abundance[temp_df$study_condition == "CRC"])
+  if (mean_crc > mean_control) {
+    directions[taxon] <- "Enriched in CRC"
+  } else if (mean_control > mean_crc) {
+    directions[taxon] <- "Enriched in Control"
+  } else {
+    directions[taxon] <- "No Difference"
+  }
+}
+
+# Adjust p-values for multiple testing to control for FDR
+adjusted_p_values <- p.adjust(p_values, method = "fdr")
+
+# Combine results into a data frame with all taxa, including effect sizes and direction
+results <- data.frame(
+  Taxon = names(adjusted_p_values),
+  P_Value = p_values,
+  Adjusted_P_Value = adjusted_p_values,
+  Effect_Size = effect_sizes,
+  Direction = directions
+)
+
+```
+
+## Differential abundance analysis: barplot with most significant taxa
+- Let's do a barplot that reports the taxa with adjusted p-value < 0.2
+
+```{r}
+# Extract the taxa names after "s__"
+results$Taxon2 <- gsub(".*s__", "", results$Taxon)
+
+# Filter the results for adjusted p-values < 0.2
+filtered_results <- results[results$Adjusted_P_Value < 0.2, ]
+
+# Extract the enriched taxa for Control and CRC groups
+enriched_control <- filtered_results[filtered_results$Direction == "Enriched in Control", ]
+enriched_crc <- filtered_results[filtered_results$Direction == "Enriched in CRC", ]
+
+# Adjust the effect sizes for direction (positive for Control, negative for CRC)
+enriched_control$Effect_Size <- abs(enriched_control$Effect_Size)  # Keep effect size positive for control
+enriched_crc$Effect_Size <- -abs(enriched_crc$Effect_Size)  # Make effect size negative for CRC
+
+# Prepare data for plotting
+plot_data <- rbind(
+  data.frame(Taxon = enriched_control$Taxon2, 
+             Effect_Size = enriched_control$Effect_Size, 
+             Group = "Control"),
+  data.frame(Taxon = enriched_crc$Taxon2, 
+             Effect_Size = enriched_crc$Effect_Size, 
+             Group = "CRC")
+)
+
+# Plot the bar plot
+ggplot(plot_data, aes(x = reorder(Taxon, Effect_Size), y = Effect_Size, fill = Group)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_manual(values = c("Control" = "darkgreen", "CRC" = "darkred")) +
+  labs(x = "Taxon", y = "Effect Size", title = "Effect Sizes of Enriched Taxa") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 10), 
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 14, face = "bold"))
+
+```
+
+## Differential abundance analysis: boxplot for Fusobacterium nucleatum
+- Let's do a boxplot for Fusobacterium nucleatum across "study_condition"
+
+```{r}
+# Extract the data for Fusobacterium_nucleatum (using partial matching) and study_condition
+nucleatum_condition <- data.frame(
+  study_condition = factor(df$study_condition, levels = c("control", "adenoma", "CRC")),  # Set the order of the levels
+  Fusobacterium_nucleatum = df[, grep("Fusobacterium_nucleatum", colnames(df))]
+)
+
+# Create the boxplot
+ggplot(nucleatum_condition, aes(x = study_condition, y = Fusobacterium_nucleatum, fill = study_condition)) +
+  geom_boxplot(color = "black") +
+  scale_fill_manual(values = c("Control" = "darkgreen", "Adenoma" = "darkorange", "CRC" = "darkred")) +
+  labs(x = "Study Condition", y = "Abundance of Fusobacterium nucleatum", 
+       title = "Abundance of Fusobacterium nucleatum across Study Conditions") +
+  theme_minimal() +
+  theme(axis.title = element_text(size = 12), 
+        plot.title = element_text(size = 14, face = "bold"),
+        legend.position = "none")
+```
+
+## List datasets with functional profiles available in curatedMetagenomicData
+
+- The curatedMetagenomicData package contains also functional profiles generated by the software HUMAnN
+- There are three data types: "pathway_abundance", "pathway_coverage", "gene_families"
+
+```{r}
+curatedMetagenomicData("pathway_abundance")
+```
+```{r}
+curatedMetagenomicData("pathway_coverage")
+```
+
+```{r}
+curatedMetagenomicData("gene_families")
+```
+## Select the "RampelliS_2015" dataset for "pathway_abundance"
+
+- Data in terms of "pathway_abundance" from the curated dataset "RampelliS_2015" are retrieved from the curatedMetagenomicData package.
+-  It retrieves pathway abundance data and associated metadata from the study and saves them as tabular files for further analysis.
+
+```{r}
+# Load the data for the specified study (RampelliS_2015) with pathway abundance values.
+# The 'dryrun' parameter is set to FALSE to execute the retrieval, and 'rownames' is set to "long" for row naming.
+dataPW <- curatedMetagenomicData("RampelliS_2015.pathway_abundance", dryrun = FALSE, rownames = "long")
+
+# Extract the first element of the retrieved data (a SummarizedExperiment object) and access the pathway abundance values.
+abundance_dataPW <- assay(dataPW[[1]])
+
+# Convert the pathway abundance matrix to a data frame for easier manipulation and analysis.
+abundance_dfPW <- as.data.frame(abundance_dataPW)
+
+# Save the pathway abundance data frame to a tabular file named "patwhay_abundances.tsv" with tab separation.
+# 'row.names = TRUE' includes the row names in the output file.
+write.table(abundance_dfPW, "pathway_abundances.tsv", sep = "\t", row.names = TRUE, col.names = NA)
+
+# Extract the metadata associated with the samples from the SummarizedExperiment object.
+metadataPW <- colData(dataPW[[1]])
+
+# Convert the metadata to a data frame (if needed) for easier manipulation and analysis.
+metadata_dfPW <- as.data.frame(metadataPW)
+
+# Save the metadata data frame to a tabular file named "metadataPW.tsv" with tab separation.
+# 'row.names = TRUE' includes the row names in the output file.
+write.table(metadata_dfPW, "metadataPW.tsv", sep  = "\t", row.names = TRUE, col.names = NA)
+```
+
+## Read again the "RampelliS_2015" dataset from files
+
+- After clearing the R environment, pathway abundance and metadata can be read through the tab-delimited files into data frames. The data frames can be merged by sample identifiers, resulting in a unified data frame ready for analysis.
+
+```{r}
+# Clear the R environment by removing all existing objects from the workspace.
+rm(list = ls())
+
+# Read the pathway abundance data from the tabular file "pathway_abundances.tsv" into a data frame.
+# 'sep = "\t"' specifies tab as the delimiter, 'header = TRUE' indicates that the first row contains column names,
+# 'row.names = 1' sets the first column as the row names, and 'check.names = FALSE' prevents R from modifying column names.
+abundance_dfPW <- read.table("pathway_abundances.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Read the metadata from the tabular file "metadataPW.tsv" into a data frame with the same parameters as above.
+metadata_dfPW <- read.table("metadataPW.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Transpose the pathway abundance data frame so that samples become rows and taxa become columns.
+abundance_dfPW <- as.data.frame(t(abundance_dfPW))
+
+# Store the column names of the pathway abundance data frame (pathways) and the metadata data frame.
+pathw <- colnames(abundance_dfPW)
+meta <- colnames(metadata_dfPW)
+
+# Merge the metadata and abundance data frames by row names (sample identifiers).
+dfPW <- merge(metadata_dfPW, abundance_dfPW, by = "row.names")
+
+# Set the row names of the merged data frame to the original row names column (sample identifiers).
+# Remove the additional Row.names column created during the merge.
+row.names(dfPW) <- dfPW$Row.names
+dfPW$Row.names <- NULL
+```
+
+## Beta diversity analysis
+- We can compute beta diversity on pathway abundance data.
+- We only consider pathway abundance data in aggregated form, i.e., we do not consider pathways stratified by species
+- We compare groups in terms of lifestyle (non_westernized: no vs yes)
+
+```{r}
+pathwfilt <- pathw[!grepl("\\|", pathw)] # Exclude pathways stratified by species
+pathwfilt <- pathwfilt[!grepl("UNMAPPED", pathwfilt)] # Exclude "UNMAPPED"
+pathwfilt <- pathwfilt[!grepl("UNINTEGRATED", pathwfilt)] # Exclude "UNINTEGRATED"
+
+# Beta diversity analysis: Bray-Curtis distance calculation
+beta_dist <- vegdist(select(dfPW, all_of(pathwfilt)), method = "bray")
+
+# PCoA analysis
+pcoa_results <- cmdscale(beta_dist, eig = TRUE, k = 2)  # Perform PCoA with 2 components
+pcoa_df <- data.frame(
+  MDS1 = pcoa_results$points[, 1],
+  MDS2 = pcoa_results$points[, 2],
+  non_westernized = dfPW$non_westernized  # Add non_westernized for coloring
+)
+
+# Set the order of non_westernized factor
+pcoa_df$non_westernized <- factor(pcoa_df$non_westernized, levels = c("no", "yes"))
+
+# Define color palette
+colors <- c("no" = "darkgreen", "yes" = "darkred")
+
+# Perform PERMANOVA (adonis2) to compare groups based on Bray-Curtis distance
+adonis_results <- adonis2(beta_dist ~ dfPW$non_westernized, permutations = 999)
+
+# PCoA plot with jittered points and p-value
+ggplot(pcoa_df, aes(x = MDS1, y = MDS2, color = non_westernized)) +
+  geom_point(size = 3, alpha = 0.8) +  # Add points with opacity
+  scale_color_manual(values = colors) +
+  stat_ellipse(aes(group = non_westernized), level = 0.95, type = "t", size = 1) +  # Add ellipses
+  labs(title = "PCoA of Beta Diversity (Bray-Curtis)", x = "MDS1", y = "MDS2") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  annotate("text", x = Inf, y = Inf, label = paste("p = ", round(adonis_results$`Pr(>F)`[1], 3)),
+           hjust = 1.1, vjust = 1.1, size = 5, color = "black")  # Add p-value from PERMANOVA
+
+```
+
+## Heatmap for the 30 most abundant pathways
+- Let's do an heatmap that report the 30 most abundant pathways in our set of samples
+
+```{r}
+# Compute the total relative abundance for each taxa
+sum_pathw <- dfPW %>% select(all_of(pathwfilt)) %>% colSums()
+
+# Select the 30 taxa with the highest sum values
+top_30_pathw <- names(sort(sum_pathw, decreasing = TRUE))[1:30]
+
+# Subset the dataframe to include only the top 30 columns
+df_top_30 <- dfPW %>% select(all_of(top_30_pathw))
+
+# Apply log10 transformation (add 0.00001 to avoid log(0) issues)
+df_top_30_log <- log10(df_top_30 + 0.00001)  # Adding 0.00001 to avoid taking log of 0
+
+# Create a heatmap matrix
+df_top_30_log <- as.matrix(df_top_30_log) # Convert the dataframe to matrix for heatmap
+
+# Create a sample annotation for non_westernized
+non_westernized_annotation <- rowAnnotation(
+  non_westernized = dfPW$non_westernized,
+  annotation_name_rot = 45,  # Rotate annotation labels by 45 degrees
+  col = list(non_westernized = c("no" = "darkgreen", "yes" = "darkred"))
+)
+
+Heatmap(df_top_30_log,
+        name = "Log10(Relative Abundance)",  # Heatmap color legend title
+        column_title = "Pathway",  # Title for columns
+        row_title = "Samples",  # Title for rows
+        show_row_names = FALSE,  # Show row names
+        show_column_names = TRUE,  # Show column names
+        cluster_rows = TRUE,  # Cluster rows
+        cluster_columns = TRUE,  # Cluster columns
+        col = colorRamp2(c(-3.6, -3.4, -3.2, -3.0), c("darkblue", "white", "red", "yellow")),  # Color scale
+        heatmap_legend_param = list(title = "Log10(Relative Abundance)", legend_width = unit(4, "cm")),
+        column_names_gp = gpar(fontsize = 5),  # Set font size for column names
+        column_names_rot = 45,  # Rotate column names by 45 degrees
+        left_annotation = non_westernized_annotation)  # Add non_westernized annotation to the left of the heatmap
+```
+
+## Differential abundance analysis: the Wilcoxon rank-sum test
+- Let's do differential abundance analysis on the pathway abundance profiles
+
+```{r}
+# Filter samples by "non_westernized" to include only "no" and "yes"
+filtered_dfPW <- dfPW[dfPW$non_westernized %in% c("no", "yes"), ]
+
+# Extract the pathway abundance data (only pathwfilt columns) and remove pathways that are zero across all samples
+pathw_data <- filtered_dfPW[, pathwfilt]
+non_zero_pathw <- colSums(pathw_data != 0) > 0
+pathw_data <- pathw_data[, non_zero_pathw]
+
+# Update the filtered data frame to include only the non-zero taxa
+filtered_dfPW <- cbind(filtered_dfPW[, meta], pathw_data)
+
+# Initialize vectors to store p-values, effect sizes, and direction
+p_values <- c()
+effect_sizes <- c()
+directions <- c()
+
+# Perform Wilcoxon rank-sum test, calculate effect size, and determine direction for each taxon
+for (pathway in names(pathw_data)) {
+  # Create a temporary data frame for the current taxon
+  temp_df <- data.frame(
+    Abundance = filtered_dfPW[[pathway]],
+    non_westernized = filtered_dfPW$non_westernized
+  )
+  
+  # Perform Wilcoxon rank-sum test
+  test_result <- wilcox.test(Abundance ~ non_westernized, data = temp_df)
+  p_values[pathway] <- test_result$p.value
+  
+  # Calculate effect size for the current taxon using wilcox_effsize
+  effect_size_result <- temp_df %>%
+    wilcox_effsize(Abundance ~ non_westernized)
+  effect_sizes[pathway] <- effect_size_result$effsize
+  
+  # Determine the direction of enrichment by comparing group means
+  mean_no <- mean(temp_df$Abundance[temp_df$non_westernized == "no"])
+  mean_yes <- mean(temp_df$Abundance[temp_df$non_westernized == "yes"])
+  if (mean_yes > mean_no) {
+    directions[pathway] <- "Enriched in non-westernized"
+  } else if (mean_no > mean_yes) {
+    directions[pathway] <- "Enriched in westernized"
+  } else {
+    directions[pathway] <- "No Difference"
+  }
+}
+
+# Adjust p-values for multiple testing to control for FDR
+adjusted_p_values <- p.adjust(p_values, method = "fdr")
+
+# Combine results into a data frame with all taxa, including effect sizes and direction
+resultsPW <- data.frame(
+  Pathway = names(adjusted_p_values),
+  P_Value = p_values,
+  Adjusted_P_Value = adjusted_p_values,
+  Effect_Size = effect_sizes,
+  Direction = directions
+)
+
+```
+
+## Differential abundance analysis: barplot with most significant pathways
+- Let's do a barplot that reports the pathways with adjusted p-value < 0.001
+
+```{r}
+# Filter the results for adjusted p-values < 0.001
+filtered_resultsPW <- resultsPW[resultsPW$Adjusted_P_Value < 0.001, ]
+
+# Extract the enriched taxa for Control and CRC groups
+enriched_noPW <- filtered_resultsPW[filtered_resultsPW$Direction == "Enriched in westernized", ]
+enriched_yesPW <- filtered_resultsPW[filtered_resultsPW$Direction == "Enriched in non-westernized", ]
+
+# Adjust the effect sizes for direction (positive for Control, negative for CRC)
+enriched_noPW$Effect_Size <- abs(enriched_noPW$Effect_Size)  # Keep effect size positive for no
+enriched_yesPW$Effect_Size <- -abs(enriched_yesPW$Effect_Size)  # Make effect size negative for yes
+
+# Prepare data for plotting
+plot_data <- rbind(
+  data.frame(Pathway = enriched_noPW$Pathway, 
+             Effect_Size = enriched_noPW$Effect_Size, 
+             Group = "no"),
+  data.frame(Pathway = enriched_yesPW$Pathway, 
+             Effect_Size = enriched_yesPW$Effect_Size, 
+             Group = "yes")
+)
+
+# Plot the bar plot
+ggplot(plot_data, aes(x = reorder(Pathway, Effect_Size), y = Effect_Size, fill = Group)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_manual(values = c("no" = "darkgreen", "yes" = "darkred")) +
+  labs(x = "Pathway", y = "Effect Size", title = "Effect Sizes of Enriched Pathways") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 4), 
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 14, face = "bold"))
+
+```
+
+
+# Machine learning-based classification for predictive modelling
+- We want to assess discrimination between healthy and diseased subjects in a case-control study
+- We can consider again the "ZellerG_2024" dataset
+
+```{r}
+# Clear the R environment by removing all existing objects from the workspace.
+rm(list = ls())
+
+# Read the relative abundance data from the tabular file "relative_abundances.tsv" into a data frame.
+# 'sep = "\t"' specifies tab as the delimiter, 'header = TRUE' indicates that the first row contains column names,
+# 'row.names = 1' sets the first column as the row names, and 'check.names = FALSE' prevents R from modifying column names.
+abundance_df <- read.table("relative_abundances.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Read the metadata from the tabular file "metadata.tsv" into a data frame with the same parameters as above.
+metadata_df <- read.table("metadata.tsv", sep = "\t", header = TRUE, row.names = 1, check.names = FALSE)
+
+# Transpose the abundance data frame so that samples become rows and taxa become columns.
+abundance_df <- as.data.frame(t(abundance_df))
+
+# Store the column names of the abundance data frame (taxa) and the metadata data frame.
+taxa <- colnames(abundance_df)
+meta <- colnames(metadata_df)
+
+# Merge the metadata and abundance data frames by row names (sample identifiers).
+df <- merge(metadata_df, abundance_df, by = "row.names")
+
+# Set the row names of the merged data frame to the original row names column (sample identifiers).
+# Remove the additional Row.names column created during the merge.
+row.names(df) <- df$Row.names
+df$Row.names <- NULL
+```
+
+```{r}
+# Filter samples by "study_condition" to include only "control" and "CRC"
+filtered_df <- df[df$study_condition %in% c("control", "CRC"), ]
+
+# Extract the abundance data (only taxa columns) and remove taxa that are zero across all samples
+abundance_data <- filtered_df[, taxa]
+non_zero_taxa <- colSums(abundance_data != 0) > 0
+abundance_data <- abundance_data[, non_zero_taxa]
+
+# Update the filtered data frame to include only the non-zero taxa
+filtered_df <- cbind(filtered_df[, meta], abundance_data)
+```
+
+```{r}
+# Load necessary libraries
+library(caret)
+library(pROC)
+
+# Extract features (columns corresponding to 'abundance_data') and label ('study_condition')
+features <- filtered_df[, colnames(abundance_data)]
+label <- filtered_df$study_condition
+
+# Create a data frame for classification
+classification_df <- data.frame(study_condition = label, features)
+
+# Set parameters for 3 runs of cross-validation
+set.seed(123)  # For reproducibility
+n_runs <- 3  # Number of cross-validation runs
+n_folds <- 5  # Number of folds in cross-validation
+
+# Initialize a data frame to store performance metrics
+results <- data.frame(Run = integer(), AUC = numeric())
+
+# Perform 3 cross-validation runs
+for (i in 1:n_runs) {
+  # Set up cross-validation
+  cv_control <- trainControl(
+    method = "cv",
+    number = n_folds,
+    classProbs = TRUE,  # Enable class probabilities
+    summaryFunction = twoClassSummary  # Use AUC as the metric
+  )
+  
+  # Ensure binary classification labels are correctly set as factors
+  classification_df$study_condition <- factor(classification_df$study_condition)
+  
+  # Train the random forest model
+  rf_model <- train(
+    study_condition ~ ., 
+    data = classification_df, 
+    method = "rf", 
+    trControl = cv_control, 
+    metric = "ROC",  # Optimize for AUC
+    importance = TRUE,
+    preProc = c("zv", "center", "scale")  # Pre-processing steps: zero variance, center, scale
+  )
+  
+  # Store the AUC results from the current run
+  results <- rbind(results, data.frame(
+    Run = i,
+    AUC = mean(rf_model$resample$ROC)  # Average AUC over folds
+  ))
+}
+
+# Summarize the results
+mean_auc <- mean(results$AUC)
+
+cat("Average AUC over", n_runs, "runs:", mean_auc, "\n")
+
+# Print all run results
+print(results)
+```
+
+# Machine learning-based regression for predictive modelling
+- We can build predictive models also for estimating continuous variables
+- We test the predictability of "age" from the same "ZellerG_2024" dataset
+
+```{r}
+# Extract features (columns corresponding to 'abundance_data') and label ('age')
+features <- filtered_df[, colnames(abundance_data)]
+label <- filtered_df$age
+
+# Create a data frame for regression
+regression_df <- data.frame(age = label, features)
+
+# Set parameters for 3 runs of cross-validation
+set.seed(123)  # For reproducibility
+n_runs <- 3  # Number of cross-validation runs
+n_folds <- 5  # Number of folds in cross-validation
+
+# Initialize a data frame to store performance metrics
+results <- data.frame(Run = integer(), RMSE = numeric())
+
+# Perform 3 cross-validation runs
+for (i in 1:n_runs) {
+  # Set up cross-validation
+  cv_control <- trainControl(
+    method = "cv",
+    number = n_folds,
+    summaryFunction = defaultSummary  # Use default regression metrics
+  )
+  
+  # Train the random forest model
+  rf_model <- train(
+    age ~ ., 
+    data = regression_df, 
+    method = "rf", 
+    trControl = cv_control, 
+    metric = "RMSE",  # Optimize for RMSE
+    importance = TRUE,
+    preProc = c("zv", "center", "scale")  # Pre-processing steps: zero variance, center, scale
+  )
+  
+  # Store the RMSE results from the current run
+  results <- rbind(results, data.frame(
+    Run = i,
+    RMSE = mean(rf_model$resample$RMSE)  # Average RMSE over folds
+  ))
+}
+
+# Summarize the results
+mean_rmse <- mean(results$RMSE)
+
+cat("Average RMSE over", n_runs, "runs:", mean_rmse, "\n")
+
+# Print all run results
+print(results)
+
+# How does this result compare with a naive "prediction" based on simply taking the mean?
+sqrt(mean((regression_df$age - mean(regression_df$age)) ^ 2))
+```
