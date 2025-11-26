@@ -321,8 +321,8 @@ wget http://cmprod1.cibio.unitn.it/biobakery4/github_strainphlan4/fastq/SRS06427
 
 ## Way n. 1: Running MetaPhlAn 
 ```
-## mpa_db="/home/ubuntu/shotgun_course/metaphlan_databases/"
-## db_version="mpa_vJan25_CHOCOPhlAnSGB_202503"
+mpa_db="/home/ubuntu/shotgun_course/metaphlan_databases/"
+db_version="mpa_vJan25_CHOCOPhlAnSGB_202503"
 
 ## s="SRS013951"; metaphlan ${s}.fastq.bz2 --input_type fastq --mapout ${s}.bowtie2.bz2 --samout ${s}.sam.bz2 -o ${s}_profile.txt --nproc 8 \
 ##     --db_dir ${mpa_db} --index ${db_version}
