@@ -9,6 +9,21 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
+## Packages installation
+
+- Here we install the third-party packages that we need later
+
+```{r}
+installed_packages <- as.data.frame(installed.packages())$Package
+packages <- c("ComplexHeatmap", "ggplot2", "vegan")
+
+for(package in packages){
+  if(!package %in% installed_packages){
+    install.packages(package)
+  }
+}
+```
+
 ## Import files
 
 - Here's the R code to import the files "metadata_erectale.txt" and "result_profile_erectale.tsv"
@@ -113,3 +128,4 @@ p <- ggplot(mds_data, aes(x = MDS1, y = MDS2, color = Country)) +
 p
 ggsave("mds_erectale.pdf", plot = p, width = 8, height = 6)
 ```
+
