@@ -357,6 +357,20 @@ analysis 2025 - PanPhlAn</h1>
 </div>
 
 
+<div id="packages-installation" class="section level2">
+<h2>Packages installation</h2>
+<ul>
+<li>Here we install the third-party packages that we need later</li>
+</ul>
+<pre class="r"><code>installed_packages &lt;- as.data.frame(installed.packages())$Package
+packages &lt;- c(&quot;ComplexHeatmap&quot;, &quot;ggplot2&quot;, &quot;vegan&quot;)
+
+for(package in packages){
+  if(!package %in% installed_packages){
+    install.packages(package)
+  }
+}</code></pre>
+</div>
 <div id="import-files" class="section level2">
 <h2>Import files</h2>
 <ul>
@@ -396,9 +410,9 @@ the variable “feat” and to include an annotation based on the column
 </ul>
 <pre class="r"><code># Load necessary libraries
 library(ComplexHeatmap)</code></pre>
-<pre><code>## Caricamento del pacchetto richiesto: grid</code></pre>
+<pre><code>## Loading required package: grid</code></pre>
 <pre><code>## ========================================
-## ComplexHeatmap version 2.22.0
+## ComplexHeatmap version 2.18.0
 ## Bioconductor page: http://bioconductor.org/packages/ComplexHeatmap/
 ## Github page: https://github.com/jokergoo/ComplexHeatmap
 ## Documentation: http://jokergoo.github.io/ComplexHeatmap-reference
@@ -461,8 +475,9 @@ that distance matrix to create the MDS plot</li>
 </ul>
 <pre class="r"><code># Load necessary libraries
 library(vegan) # For MDS function</code></pre>
-<pre><code>## Caricamento del pacchetto richiesto: permute</code></pre>
-<pre><code>## Caricamento del pacchetto richiesto: lattice</code></pre>
+<pre><code>## Loading required package: permute</code></pre>
+<pre><code>## Loading required package: lattice</code></pre>
+<pre><code>## This is vegan 2.6-8</code></pre>
 <pre class="r"><code>library(ggplot2) # For visualization
 
 # Create a distance matrix using &quot;jaccard&quot;
@@ -471,41 +486,46 @@ dist_matrix &lt;- vegdist(df_feat, method = &quot;jaccard&quot;)
 # Perform MDS on the distance matrix
 mds_result &lt;- metaMDS(dist_matrix)</code></pre>
 <pre><code>## Run 0 stress 0.07709181 
-## Run 1 stress 0.07709187 
-## ... Procrustes: rmse 0.0002690241  max resid 0.0004684975 
+## Run 1 stress 0.07709185 
+## ... Procrustes: rmse 0.0002962113  max resid 0.000600773 
 ## ... Similar to previous best
-## Run 2 stress 0.07536148 
+## Run 2 stress 0.08849384 
+## Run 3 stress 0.0770918 
 ## ... New best solution
-## ... Procrustes: rmse 0.1368619  max resid 0.317957 
-## Run 3 stress 0.07709207 
-## Run 4 stress 0.07709185 
-## Run 5 stress 0.2207205 
-## Run 6 stress 0.07709179 
-## Run 7 stress 0.077092 
-## Run 8 stress 0.07709181 
-## Run 9 stress 0.08084976 
-## Run 10 stress 0.08084976 
-## Run 11 stress 0.08084976 
-## Run 12 stress 0.07536148 
+## ... Procrustes: rmse 4.513366e-05  max resid 7.11314e-05 
+## ... Similar to previous best
+## Run 4 stress 0.07709182 
+## ... Procrustes: rmse 5.019164e-05  max resid 8.928171e-05 
+## ... Similar to previous best
+## Run 5 stress 0.07536148 
 ## ... New best solution
-## ... Procrustes: rmse 3.1154e-06  max resid 5.646181e-06 
+## ... Procrustes: rmse 0.1368537  max resid 0.3179096 
+## Run 6 stress 0.07536148 
+## ... Procrustes: rmse 1.375955e-06  max resid 2.012459e-06 
 ## ... Similar to previous best
-## Run 13 stress 0.07536148 
-## ... Procrustes: rmse 8.656792e-07  max resid 1.615381e-06 
+## Run 7 stress 0.08084979 
+## Run 8 stress 0.08849386 
+## Run 9 stress 0.07536148 
+## ... Procrustes: rmse 2.181722e-05  max resid 3.952353e-05 
 ## ... Similar to previous best
-## Run 14 stress 0.1642317 
-## Run 15 stress 0.07536148 
-## ... New best solution
-## ... Procrustes: rmse 1.877947e-06  max resid 3.417902e-06 
+## Run 10 stress 0.08084977 
+## Run 11 stress 0.07709187 
+## Run 12 stress 0.08084981 
+## Run 13 stress 0.2310789 
+## Run 14 stress 0.07536148 
+## ... Procrustes: rmse 8.039974e-06  max resid 1.456689e-05 
 ## ... Similar to previous best
-## Run 16 stress 0.07536148 
-## ... Procrustes: rmse 3.61624e-06  max resid 6.54167e-06 
+## Run 15 stress 0.08084976 
+## Run 16 stress 0.07709181 
+## Run 17 stress 0.07536148 
+## ... Procrustes: rmse 1.812607e-06  max resid 3.56907e-06 
 ## ... Similar to previous best
-## Run 17 stress 0.08849385 
-## Run 18 stress 0.08849384 
-## Run 19 stress 0.08084976 
-## Run 20 stress 0.08084976 
-## *** Best solution repeated 2 times</code></pre>
+## Run 18 stress 0.07709192 
+## Run 19 stress 0.07536148 
+## ... Procrustes: rmse 2.150493e-06  max resid 3.903283e-06 
+## ... Similar to previous best
+## Run 20 stress 0.08849384 
+## *** Best solution repeated 5 times</code></pre>
 <pre class="r"><code># Create a data frame for plotting
 mds_data &lt;- as.data.frame(mds_result$points) # Extract MDS coordinates
 
