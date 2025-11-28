@@ -632,3 +632,131 @@ cp -r /home/ubuntu/shotgun_course/7_assembly/zymo.flye_asm/ ./
 ```
 
 ### End of Lecture 7 - Metagenomic assembly
+### Lecture 8 - MAG reconstruction
+```
+cd /home/user<YOUR USER NAME>
+path="/home/ubuntu/shotgun_course/anaconda3course/bin/"
+```
+
+## Metabat2 for metagenomic binning (folder "8_MAG-reconstruction")
+```
+source ${path}/activate
+ 
+## conda create -n metabat2 -c bioconda metabat2 ## DON'T DO IT. WE DID ALREADY
+source ${path}/activate metabat2
+
+## conda install -c bioconda bowtie2 ## DON'T DO IT. WE DID ALREADY
+## conda install -c bioconda samtools ## DON'T DO IT. WE DID ALREADY
+
+mkdir 8_MAG-reconstruction
+cd 8_MAG-reconstruction
+```
+
+## Copy the raw reads and contigs generated in the previous tutorial (folder "7_assembly")
+```
+s="SRR341725"
+
+cp ../7_assembly/SRR341725.megahit_asm/contigs_filtered.fasta ./
+cp ../7_assembly/SRR341725_1.fastq.gz ./
+cp ../7_assembly/SRR341725_2.fastq.gz ./
+```
+
+## Mapping of raw reads against contigs
+```
+bowtie2-build contigs_filtered.fasta contigs_filtered
+## bowtie2 -x contigs_filtered -1 ${s}_1.fastq.gz -2 ${s}_2.fastq.gz -S ${s}.sam -p 8 2> ${s}.bowtie2.log ## TOO LONG
+## samtools view -bS ${s}.sam > ${s}.bam ## TOO LONG
+## samtools sort ${s}.bam -o sorted_${s}.bam ## TOO LONG
+
+## COPY THE RESULT FOR NOW:
+cp /home/ubuntu/shotgun_course/8_MAG-reconstruction/sorted_SRR341725.bam ./
+```
+
+## Run metabat2 to reconstruct metagenome-assembled genomes (MAGs)
+```
+jgi_summarize_bam_contig_depths --outputDepth ${s}_depth.txt sorted_${s}.bam 2> ${s}_depth.log
+metabat2 -i contigs_filtered.fasta -a ${s}_depth.txt -o ${s}_bins/bin -m 1500 --unbinned -t 8 > ${s}_metabat2.log
+```
+
+## CheckM2 to estimate MAG quality
+```
+conda deactivate
+source ${path}/activate
+
+## conda create -n checkm2 -c bioconda checkm2 ## DON'T DO IT. WE DID ALREADY
+source ${path}/activate checkm2
+
+## LET'S DOWNLOAD THE DATABASE
+## checkm2 database --download --path ../ ## DON'T DO IT. WE DID ALREADY
+
+## WE CAN USE A COPY HERE:
+checkm2_db="/home/ubuntu/shotgun_course/CheckM2_database/uniref100.KO.1.dmnd"
+checkm2 testrun --database_path ${checkm2_db} --threads 8
+
+## checkm2 predict -i SRR341725_bins -o SRR341725_checkm2 -x .fa --database_path ${checkm2_db} --threads 8 ## TOO LONG
+
+## COPY THE RESULT FOR NOW:
+cp -r /home/ubuntu/shotgun_course/8_MAG-reconstruction/SRR341725_checkm2 ./
+
+awk -F'\t' '$2 > 50 && $3 < 5' SRR341725_checkm2/quality_report.tsv > SRR341725_checkm2/quality_report_filtered.tsv
+
+mkdir -p ${s}_bins_filtered
+cut -f1 SRR341725_checkm2/quality_report_filtered.tsv | while read -r value; do cp ${s}_bins/${value}.fa ${s}_bins_filtered/; done
+```
+
+## Run PhyloPhlAn to perform taxonomic assignment
+```
+conda deactivate
+
+## conda create -n phylophlan -c anaconda biopython=1.73
+source ${path}/activate phylophlan
+## conda install -c bioconda phylophlan
+```
+
+## Let's have a look at PhyPhlAn commands:
+```
+phylophlan_assign_sgbs -h
+```
+
+## Let's run the PhyloPhlAn taxonomic assignment tool
+```
+
+## WE'LL USE A COPY OF THIS DATABASE TO SPARE DOWNLOAD TIME
+database_folder="/home/ubuntu/shotgun_course/phylophlan_databases/"
+
+## WE RUN THE TAXONOMIC ASSIGNMENT
+## phylophlan_assign_sgbs -i SRR341725_bins_filtered -o SRR341725_bins_filtered_phylophlan \ ## TOO LONG
+##    -d SGB.Jun23 --database_folder ${database_folder} \
+##    -n 1 --verbose --nproc 8 2>&1 | tee SRR341725_phylophlan.log
+
+## COPY THE RESULT FOR NOW:
+cp /home/ubuntu/shotgun_course/8_MAG-reconstruction/SRR341725_phylophlan.log ./
+cp /home/ubuntu/shotgun_course/8_MAG-reconstruction/SRR341725_bins_filtered_phylophlan.tsv ./
+```
+
+
+#### Run Bakta for rapid genome annotation
+```
+conda deactivate
+
+## conda create -n bakta -c conda-forge -c bioconda bakta  ## DON'T DO IT. WE DID ALREADY
+source ${path}/activate bakta
+
+## LET'S DOWNLOAD THE DATABASE
+## bakta_db download --output ../bakta_db --type full ## DON'T DO IT. WE DID ALREADY
+bakta_db="/home/ubuntu/shotgun_course/bakta_db/db"
+
+cd SRR341725_bins_filtered
+mkdir -p tmp
+s="bin.8"
+## bakta --db ${bakta_db} --min-contig-length 200 --prefix ${s} --output ${s}_bakta/ --compliant --meta --threads 8 --tmp-dir ./tmp ${s}.fa ## TOO LONG
+
+## COPY THE RESULT FOR NOW:
+cp -r /home/ubuntu/shotgun_course/8_MAG-reconstruction/SRR341725_bins_filtered/bin.8_bakta ./
+```
+
+
+### End of Lecture 8 - MAG reconstruction
+### Lecture 9 - Statistical analysis
+See the R script here in subfolder [https://github.com/edoardopasolli/physalia_metagenomics_course_2025/tree/main/9_statistical-analysis-Rcode](9_statistical-analysis-Rcode)
+### End of Lecture 9 - Statistical analysis
