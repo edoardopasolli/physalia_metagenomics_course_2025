@@ -713,14 +713,13 @@ source ${path}/activate phylophlan
 ## conda install -c bioconda phylophlan
 ```
 
-## Let's have a look at PhyPhlAn commands:
+## Let's have a look at PhyloPhlAn commands:
 ```
 phylophlan_assign_sgbs -h
 ```
 
 ## Let's run the PhyloPhlAn taxonomic assignment tool
 ```
-
 ## WE'LL USE A COPY OF THIS DATABASE TO SPARE DOWNLOAD TIME
 database_folder="/home/ubuntu/shotgun_course/phylophlan_databases/"
 
