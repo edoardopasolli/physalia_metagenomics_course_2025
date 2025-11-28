@@ -362,14 +362,33 @@ analysis 2025 - PanPhlAn</h1>
 <ul>
 <li>Here we install the third-party packages that we need later</li>
 </ul>
-<pre class="r"><code>installed_packages &lt;- as.data.frame(installed.packages())$Package
-packages &lt;- c(&quot;ComplexHeatmap&quot;, &quot;ggplot2&quot;, &quot;vegan&quot;)
-
-for(package in packages){
-  if(!package %in% installed_packages){
-    install.packages(package)
+<pre class="r"><code>install_if_missing &lt;- function(packages, from = &quot;cran&quot;){
+  if(!from %in% c(&quot;cran&quot;, &quot;bioconductor&quot;)){
+    stop(&quot;Unknown from source: use &#39;cran&#39; or &#39;bioconductor&#39;.&quot;)
   }
-}</code></pre>
+  
+  installed_packages &lt;- as.data.frame(installed.packages())$Package
+  
+  for(package in packages){
+    if(!package %in% installed_packages){
+      if(from == &quot;cran&quot;){
+        install.packages(package, repos=&quot;https://cloud.r-project.org&quot;)
+      } else if(from == &quot;bioconductor&quot;){
+          if(!&quot;BiocManager&quot; %in% installed_packages){
+            install.packages(&quot;BiocManager&quot;, repos=&quot;https://cloud.r-project.org&quot;)
+          }
+        BiocManager::install(package, ask = FALSE)
+      }
+    }
+  }
+  
+}
+
+bioconductor_packages &lt;- c(&quot;ComplexHeatmap&quot;)
+cran_packages &lt;- c(&quot;ggplot2&quot;, &quot;vegan&quot;)
+
+install_if_missing(bioconductor_packages, from = &quot;bioconductor&quot;)
+install_if_missing(cran_packages, from = &quot;cran&quot;)</code></pre>
 </div>
 <div id="import-files" class="section level2">
 <h2>Import files</h2>
@@ -486,46 +505,41 @@ dist_matrix &lt;- vegdist(df_feat, method = &quot;jaccard&quot;)
 # Perform MDS on the distance matrix
 mds_result &lt;- metaMDS(dist_matrix)</code></pre>
 <pre><code>## Run 0 stress 0.07709181 
-## Run 1 stress 0.07709185 
-## ... Procrustes: rmse 0.0002962113  max resid 0.000600773 
-## ... Similar to previous best
-## Run 2 stress 0.08849384 
-## Run 3 stress 0.0770918 
+## Run 1 stress 0.2487396 
+## Run 2 stress 0.07536148 
 ## ... New best solution
-## ... Procrustes: rmse 4.513366e-05  max resid 7.11314e-05 
+## ... Procrustes: rmse 0.1368618  max resid 0.3179562 
+## Run 3 stress 0.07536148 
+## ... Procrustes: rmse 8.892007e-06  max resid 1.615024e-05 
 ## ... Similar to previous best
-## Run 4 stress 0.07709182 
-## ... Procrustes: rmse 5.019164e-05  max resid 8.928171e-05 
-## ... Similar to previous best
+## Run 4 stress 0.08084976 
 ## Run 5 stress 0.07536148 
-## ... New best solution
-## ... Procrustes: rmse 0.1368537  max resid 0.3179096 
-## Run 6 stress 0.07536148 
-## ... Procrustes: rmse 1.375955e-06  max resid 2.012459e-06 
+## ... Procrustes: rmse 1.053966e-05  max resid 1.936699e-05 
 ## ... Similar to previous best
-## Run 7 stress 0.08084979 
-## Run 8 stress 0.08849386 
-## Run 9 stress 0.07536148 
-## ... Procrustes: rmse 2.181722e-05  max resid 3.952353e-05 
+## Run 6 stress 0.2305315 
+## Run 7 stress 0.07536148 
+## ... Procrustes: rmse 1.233143e-05  max resid 2.242788e-05 
 ## ... Similar to previous best
-## Run 10 stress 0.08084977 
-## Run 11 stress 0.07709187 
-## Run 12 stress 0.08084981 
-## Run 13 stress 0.2310789 
+## Run 8 stress 0.08084976 
+## Run 9 stress 0.1177036 
+## Run 10 stress 0.07536148 
+## ... Procrustes: rmse 3.307972e-06  max resid 5.663965e-06 
+## ... Similar to previous best
+## Run 11 stress 0.07709197 
+## Run 12 stress 0.07709183 
+## Run 13 stress 0.07709185 
 ## Run 14 stress 0.07536148 
-## ... Procrustes: rmse 8.039974e-06  max resid 1.456689e-05 
+## ... Procrustes: rmse 3.21691e-06  max resid 5.375116e-06 
 ## ... Similar to previous best
-## Run 15 stress 0.08084976 
-## Run 16 stress 0.07709181 
-## Run 17 stress 0.07536148 
-## ... Procrustes: rmse 1.812607e-06  max resid 3.56907e-06 
+## Run 15 stress 0.08849384 
+## Run 16 stress 0.2379702 
+## Run 17 stress 0.08849384 
+## Run 18 stress 0.1177035 
+## Run 19 stress 0.2207205 
+## Run 20 stress 0.07536148 
+## ... Procrustes: rmse 9.70128e-07  max resid 1.436239e-06 
 ## ... Similar to previous best
-## Run 18 stress 0.07709192 
-## Run 19 stress 0.07536148 
-## ... Procrustes: rmse 2.150493e-06  max resid 3.903283e-06 
-## ... Similar to previous best
-## Run 20 stress 0.08849384 
-## *** Best solution repeated 5 times</code></pre>
+## *** Best solution repeated 6 times</code></pre>
 <pre class="r"><code># Create a data frame for plotting
 mds_data &lt;- as.data.frame(mds_result$points) # Extract MDS coordinates
 
