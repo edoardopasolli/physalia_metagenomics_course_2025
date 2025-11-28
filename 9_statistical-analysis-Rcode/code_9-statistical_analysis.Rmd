@@ -9,6 +9,43 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
+## Install packages
+- Here we install the missing third-party packages that we need later
+
+```{r}
+install_if_missing <- function(packages, from = "cran"){
+  if(!from %in% c("cran", "bioconductor")){
+    stop("Unknown from source: use 'cran' or 'bioconductor'.")
+  }
+  
+  installed_packages <- as.data.frame(installed.packages())$Package
+  
+  for(package in packages){
+    if(!package %in% installed_packages){
+      if(from == "cran"){
+        install.packages(package, repos="https://cloud.r-project.org")
+      } else if(from == "bioconductor"){
+          if(!"BiocManager" %in% installed_packages){
+            install.packages("BiocManager", repos="https://cloud.r-project.org")
+          }
+        BiocManager::install(package, ask = FALSE)
+      }
+    }
+  }
+
+}
+
+bioconductor_packages <- c("curatedMetagenomicData", "ComplexHeatmap")
+
+cran_packages <- c(
+  "vegan", "dplyr", "ggplot2", "ggpubr", "tidyr", "tibble",
+  "stringr", "circlize", "rstatix", "caret", "pROC"
+)
+
+install_if_missing(bioconductor_packages, from = "bioconductor")
+install_if_missing(cran_packages, from = "cran")
+```
+
 ## Import libraries
 
 - Before using R packages, it is essential to load them in the R session using the library() function. This is necessary for importing and utilizing any package in R. 
@@ -1072,4 +1109,5 @@ print(results)
 
 # How does this result compare with a naive "prediction" based on simply taking the mean?
 sqrt(mean((regression_df$age - mean(regression_df$age)) ^ 2))
+
 ```
