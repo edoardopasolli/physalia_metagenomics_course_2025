@@ -418,7 +418,7 @@ panphlan_download_pangenome.py -i Eubacterium_rectale -o ./
 mkdir -p map_results
 
 s="CCMD34381688ST-21-0"
-#panphlan_map.py -i samples_fastq/${s}.fastq --indexes Eubacterium_rectale/Eubacterium_rectale -p Eubacterium_rectale/Eubacterium_rectale_pangenome.tsv -o map_results/${s}_erectale.tsv --nproc 8  ## TOO LONG,
+#panphlan_map.py -i samples_fastq/${s}.fastq --indexes Eubacterium_rectale/Eubacterium_rectale -p Eubacterium_rectale/Eubacterium_rectale_pangenome.tsv -o map_results/${s}_erectale.tsv --nproc 8 ## TOO LONG,
 ## DO THIS INSTEAD:
 
 cp /home/ubuntu/shotgun_course/5_panphlan/map_results/${s}_erectale.tsv map_results/
@@ -615,6 +615,20 @@ source ${path}/activate megahit
 python megahit2spades.py ${s}.megahit_asm/final.contigs.fa ${s}.megahit_asm/contigs.fasta
 python filter_contigs.py ${s}.megahit_asm/contigs.fasta ${s}.megahit_asm/contigs_filtered.fasta
 python filter_contigs.py ${s}.megahit_asm/contigs.fasta ${s}.megahit_asm/contigs_filtered_50000.fasta -l 50000
+```
+
+#### Run flye to perform assembly of long-read sequences
+```
+conda deactivate
+source ${path}/activate
+
+## conda create -n flye flye ## DON'T DO IT. WE DID ALREADY
+source ${path}/activate flye
+
+## flye --nano-raw ../2_metaphlan/zymo/Zymo-GridION-EVEN-BB-SN.fq.gz --out-dir zymo.flye_asm --meta --threads 8 ## TOO LONG,
+## DO THIS INSTEAD:
+
+cp -r /home/ubuntu/shotgun_course/7_assembly/zymo.flye_asm/ ./
 ```
 
 ### End of Lecture 7 - Metagenomic assembly
