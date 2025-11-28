@@ -720,8 +720,8 @@ phylophlan_assign_sgbs -h
 
 ## Let's run the PhyloPhlAn taxonomic assignment tool
 ```
-## WE'LL USE A COPY OF THIS DATABASE TO SPARE DOWNLOAD TIME
-database_folder="/home/ubuntu/shotgun_course/phylophlan_databases/"
+## SET THE DATABASE FOLDER, FOR EXAMPLE:
+database_folder="/home/ubuntu/shotgun_course/phylophlan_databases/" ## THE DB WILL BE AUTOMATICALLY DOWNLOADED HERE WHEN RUNNING PHYLOPHLAN THE FIRST TIME
 
 ## WE RUN THE TAXONOMIC ASSIGNMENT
 ## phylophlan_assign_sgbs -i SRR341725_bins_filtered -o SRR341725_bins_filtered_phylophlan \ ## TOO LONG
