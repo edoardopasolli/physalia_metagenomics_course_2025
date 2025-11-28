@@ -14,14 +14,33 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 - Here we install the third-party packages that we need later
 
 ```{r}
-installed_packages <- as.data.frame(installed.packages())$Package
-packages <- c("ComplexHeatmap", "ggplot2", "vegan")
-
-for(package in packages){
-  if(!package %in% installed_packages){
-    install.packages(package)
+install_if_missing <- function(packages, from = "cran"){
+  if(!from %in% c("cran", "bioconductor")){
+    stop("Unknown from source: use 'cran' or 'bioconductor'.")
   }
+  
+  installed_packages <- as.data.frame(installed.packages())$Package
+  
+  for(package in packages){
+    if(!package %in% installed_packages){
+      if(from == "cran"){
+        install.packages(package, repos="https://cloud.r-project.org")
+      } else if(from == "bioconductor"){
+          if(!"BiocManager" %in% installed_packages){
+            install.packages("BiocManager", repos="https://cloud.r-project.org")
+          }
+        BiocManager::install(package, ask = FALSE)
+      }
+    }
+  }
+  
 }
+
+bioconductor_packages <- c("ComplexHeatmap")
+cran_packages <- c("ggplot2", "vegan")
+
+install_if_missing(bioconductor_packages, from = "bioconductor")
+install_if_missing(cran_packages, from = "cran")
 ```
 
 ## Import files
@@ -128,4 +147,5 @@ p <- ggplot(mds_data, aes(x = MDS1, y = MDS2, color = Country)) +
 p
 ggsave("mds_erectale.pdf", plot = p, width = 8, height = 6)
 ```
+
 
