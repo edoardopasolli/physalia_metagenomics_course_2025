@@ -617,7 +617,7 @@ python filter_contigs.py ${s}.megahit_asm/contigs.fasta ${s}.megahit_asm/contigs
 python filter_contigs.py ${s}.megahit_asm/contigs.fasta ${s}.megahit_asm/contigs_filtered_50000.fasta -l 50000
 ```
 
-#### Run flye to perform assembly of long-read sequences
+#### Run Flye to perform assembly of long-read sequences
 ```
 conda deactivate
 source ${path}/activate
